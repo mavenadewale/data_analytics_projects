@@ -1,0 +1,201 @@
+---
+title: "Case Study - Cyclistic Data"
+author: "Adewale"
+output: html_document
+date: "2023-05-29"
+---
+
+```{r setup, include=FALSE}
+## Load the necessary libraries
+
+library(tidyverse) 
+library(janitor)
+library(skimr)
+library(here)
+library(dplyr)
+```
+
+
+## Load the csv files into dataframes
+```{r csv data collection}
+Jun2021 <- read_csv("Raw Data/202106-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Jul2021 <- read_csv("Raw Data/202107-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Aug2021 <- read_csv("Raw Data/202108-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Sep2021 <- read_csv("Raw Data/202109-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Oct2021 <- read_csv("Raw Data/202110-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Nov2021 <- read_csv("Raw Data/202111-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Dec2021 <- read_csv("Raw Data/202112-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Jan2022 <- read_csv("Raw Data/202201-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Feb2022 <- read_csv("Raw Data/202202-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Mar2022 <- read_csv("Raw Data/202203-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+Apr2022 <- read_csv("Raw Data/202204-divvy-tripdata.csv")
+```
+
+
+```{r csv data collection}
+May2022 <- read_csv("Raw Data/202205-divvy-tripdata.csv")
+```
+
+
+## Combine the loaded data into one dataframe to make analysis easier
+```{r}
+bike_df <- rbind(Jun2021, Jul2021, Aug2021, Sep2021,
+                  Oct2021, Nov2021, Dec2021, Jan2022,
+                  Feb2022, Mar2022, Apr2022, May2022)
+```
+## Create a backup of the combined data
+```{r}
+bike_df1 <- bike_df
+```
+
+## Take a look at the combined data
+```{r}
+head(bike_df1)
+glimpse(bike_df1)
+```
+
+## From the above exploration, the started_at and ended_at columns have a character datatype, which is wrong. To proceed, we have to change their datatype to the correct one, datetime.
+```{r}
+bike_df1[['started_at']] <- as.POSIXct(bike_df1[['started_at']],
+format = "%d/%m/%Y %H:%M")
+
+bike_df1[['ended_at']] <- as.POSIXct(bike_df1[['ended_at']],
+format = "%d/%m/%Y %H:%M")
+
+glimpse(bike_df1)
+head(bike_df1)
+```
+
+## Insert new columns which are necessary for the analysis
+```{r}
+bike_df1$date <- as.Date(bike_df1$started_at) #This will add a date column
+bike_df1$year <- format(as.Date(bike_df1$date), "%Y") #This will add a year column
+bike_df1$month <- format(as.Date(bike_df1$date), "%B") #This will add a month column
+bike_df1$day_of_week[bike_df1$day_of_week=="1"] <- "Sunday"
+bike_df1$day_of_week[bike_df1$day_of_week=="2"] <- "Monday"
+bike_df1$day_of_week[bike_df1$day_of_week=="3"] <- "Tuesday"
+bike_df1$day_of_week[bike_df1$day_of_week=="4"] <- "Wednesday"
+bike_df1$day_of_week[bike_df1$day_of_week=="5"] <- "Thursday"
+bike_df1$day_of_week[bike_df1$day_of_week=="6"] <- "Friday"
+bike_df1$day_of_week[bike_df1$day_of_week=="7"] <- "Saturday"
+bike_df1 <- bike_df1 %>%
+  rename(weekday = day_of_week)
+bike_df1$ride_length <- (as.double(difftime(bike_df1$ended_at, bike_df1$started_at))) /60  #calculate ride length in minutes
+head(bike_df1)
+```
+## Explore the data to see its structure
+```{r}
+str(bike_df1)
+```
+
+```{r}
+summary(bike_df1)
+```
+
+```{r}
+dim(bike_df1)
+```
+
+
+## Data Cleaning
+
+```{r}
+#Remove duplicates
+
+bike_df1 <- distinct(bike_df1)
+
+#Some values in the ride_length column are negative, this is impossible. Hence, we have to remove them
+
+bike_df1 <- bike_df1[!bike_df1$ride_length<1,]
+
+#We also need to get rid of ride lengths that are too long, i.e. more than a day or 1440 minutes
+
+bike_df1 <- bike_df1[!bike_df1$ride_length>1440,]
+
+#Some column names do not make sense, we need to change them to give the data they contain meaning
+
+bike_df1 <- bike_df1 %>%
+  rename(customer_type = member_casual)
+
+bike_df1 <- bike_df1 %>%
+  rename(bike_type = rideable_type)
+
+#We need to focus on the data we will be using for the analysis and filter out unnecessary data
+
+bike_df1 <- bike_df1 %>% select(bike_type, customer_type, started_at, ended_at, start_station_name, end_station_name, date, year, month, weekday, ride_length)
+
+#Order the data based on day of week and by month to make analysis easier
+bike_df1$weekday <- ordered(bike_df1$weekday, levels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+bike_df1$month <- ordered(bike_df1$month, levels=c("June", "July", "August", "September", "October", "November", "December",  "January", "February","March", "April", "May"))
+
+#Remove missing data
+
+bike_df1 <- drop_na(bike_df1)
+
+head(bike_df1)
+```
+
+## Analyzing the Data
+
+```{r}
+#Let's check membership counts by membership type
+table(bike_df1$customer_type)
+```
+```{r}
+#looks at total rides for each customer type in minutes
+setNames(aggregate(ride_length ~ customer_type, bike_df1, sum), c("customer_type", "total_ride_length(mins)"))
+```
+
+```{r}
+#What is the average ride duration?
+summary(bike_df1$ride_length)
+```
+
+```{r}
+bike_df1 %>% group_by(customer_type) %>%
+  summarise(min_duration = min(ride_length),
+            mean_duration = mean(ride_length),
+            median_duration = median(ride_length),
+            max_duration = max(ride_length))
+```
+
